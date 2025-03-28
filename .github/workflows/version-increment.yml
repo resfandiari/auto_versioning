@@ -1,6 +1,5 @@
 name: Increment Version
 
-# Grant write permissions to the workflow
 permissions:
   contents: write
 
@@ -18,38 +17,76 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Fetch full history to count commits accurately
-          fetch-depth: 0
+          fetch-depth: 0 # Fetch full history to analyze commits
 
-      # Set up Flutter environment
+      # Set up Flutter environment (using latest stable version)
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: 'stable' # Automatically uses the latest stable version
 
-      # Increment version in pubspec.yaml
-      - name: Increment Build Number
+      # Analyze commits and increment version
+      - name: Increment Version with Semantic Versioning
         run: |
+          # Get the latest commit message
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MESSAGE"
+
           # Get current version from pubspec.yaml
           CURRENT_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //')
           VERSION_NAME=$(echo $CURRENT_VERSION | cut -d'+' -f1)
           BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
-          
-          # Increment build number (or set to 1 if not present)
+
+          # Parse current version into MAJOR, MINOR, PATCH
+          MAJOR=$(echo $VERSION_NAME | cut -d'.' -f1)
+          MINOR=$(echo $VERSION_NAME | cut -d'.' -f2)
+          PATCH=$(echo $VERSION_NAME | cut -d'.' -f3)
+
+          # Default to PATCH increment
+          BUMP_TYPE="patch"
+
+          # Check for breaking changes (MAJOR bump)
+          if echo "$COMMIT_MESSAGE" | grep -qi "BREAKING CHANGE"; then
+            BUMP_TYPE="major"
+          # Check for features (MINOR bump)
+          elif echo "$COMMIT_MESSAGE" | grep -qi "^feat"; then
+            BUMP_TYPE="minor"
+          # Otherwise, default to PATCH bump (e.g., for "fix:" or other commits)
+          fi
+
+          # Increment version based on BUMP_TYPE
+          case $BUMP_TYPE in
+            "major")
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            "minor")
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            "patch")
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          # Increment build number
           if [ -z "$BUILD_NUMBER" ]; then
             NEW_BUILD_NUMBER=1
           else
             NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
           fi
-          
-          # New version string
-          NEW_VERSION="$VERSION_NAME+$NEW_BUILD_NUMBER"
-          
+
+          # Construct new version
+          NEW_VERSION_NAME="$MAJOR.$MINOR.$PATCH"
+          NEW_VERSION="$NEW_VERSION_NAME+$NEW_BUILD_NUMBER"
+
           # Update pubspec.yaml with new version
           sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
-          
+
           # Display the new version
           echo "Updated version to: $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       # Commit and push the updated pubspec.yaml
       - name: Commit version update
@@ -57,5 +94,5 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           git add pubspec.yaml
-          git commit -m "Increment build number to $NEW_VERSION [skip ci]"
+          git commit -m "Bump version to ${{ env.NEW_VERSION }} [skip ci]"
           git push
