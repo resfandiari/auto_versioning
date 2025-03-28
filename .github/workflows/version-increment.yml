@@ -1,0 +1,59 @@
+name: Increment Version
+
+# Trigger the workflow on push to the main branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  version-increment:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history to count commits accurately
+          fetch-depth: 0
+
+      # Set up Flutter environment
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.2'
+          channel: 'stable'
+
+      # Increment version in pubspec.yaml
+      - name: Increment Build Number
+        run: |
+          # Get current version from pubspec.yaml
+          CURRENT_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //')
+          VERSION_NAME=$(echo $CURRENT_VERSION | cut -d'+' -f1)
+          BUILD_NUMBER=$(echo $CURRENT_VERSION | cut -d'+' -f2)
+          
+          # Increment build number (or set to 1 if not present)
+          if [ -z "$BUILD_NUMBER" ]; then
+            NEW_BUILD_NUMBER=1
+          else
+            NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
+          fi
+          
+          # New version string
+          NEW_VERSION="$VERSION_NAME+$NEW_BUILD_NUMBER"
+          
+          # Update pubspec.yaml with new version
+          sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
+          
+          # Display the new version
+          echo "Updated version to: $NEW_VERSION"
+
+      # Commit and push the updated pubspec.yaml
+      - name: Commit version update
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add pubspec.yaml
+          git commit -m "Increment build number to $NEW_VERSION [skip ci]"
+          git push
