@@ -96,6 +96,7 @@ jobs:
 
       # Analyze commits and increment version
       - name: Increment Version with Semantic Versioning
+        id: version_increment
         run: |
           # Get the latest commit message
           COMMIT_MESSAGE=$(git log -1 --pretty=%B)
@@ -104,7 +105,7 @@ jobs:
           # Check if the commit message follows Conventional Commits
           if ! echo "$COMMIT_MESSAGE" | grep -qiE "^(feat|fix):|^BREAKING CHANGE"; then
             echo "No version bump required for this commit (non-conventional commit)."
-            echo "SKIPPED=true" >> $GITHUB_ENV
+            echo "SKIPPED=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -162,17 +163,17 @@ jobs:
 
           # Display the new version
           echo "Updated version to: $NEW_VERSION"
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          echo "SKIPPED=false" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "SKIPPED=false" >> $GITHUB_OUTPUT
 
       # Commit and push the updated pubspec.yaml (only if not skipped)
       - name: Commit version update
-        if: env.SKIPPED != 'true'
+        if: ${{ steps.version_increment.outputs.SKIPPED != 'true' }}
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
           git add pubspec.yaml
-          git commit -m "Bump version to ${{ env.NEW_VERSION }} [skip ci]"
+          git commit -m "Bump version to ${{ steps.version_increment.outputs.NEW_VERSION }} [skip ci]"
           git push
 ```
 
