@@ -1,6 +1,9 @@
 name: Increment Version
 
-# Trigger the workflow on push to the main branch
+# Grant write permissions to the workflow
+permissions:
+  contents: write
+
 on:
   push:
     branches:
