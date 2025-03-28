@@ -32,6 +32,13 @@ jobs:
           COMMIT_MESSAGE=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MESSAGE"
 
+          # Check if the commit message follows Conventional Commits
+          if ! echo "$COMMIT_MESSAGE" | grep -qiE "^(feat|fix):|^BREAKING CHANGE"; then
+            echo "No version bump required for this commit (non-conventional commit)."
+            echo "SKIPPED=true" >> $GITHUB_ENV
+            exit 0
+          fi
+
           # Get current version from pubspec.yaml
           CURRENT_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //')
           VERSION_NAME=$(echo $CURRENT_VERSION | cut -d'+' -f1)
@@ -51,7 +58,7 @@ jobs:
           # Check for features (MINOR bump)
           elif echo "$COMMIT_MESSAGE" | grep -qi "^feat"; then
             BUMP_TYPE="minor"
-          # Otherwise, default to PATCH bump (e.g., for "fix:" or other commits)
+          # Otherwise, default to PATCH bump (e.g., for "fix:" commits)
           fi
 
           # Increment version based on BUMP_TYPE
@@ -87,9 +94,11 @@ jobs:
           # Display the new version
           echo "Updated version to: $NEW_VERSION"
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "SKIPPED=false" >> $GITHUB_ENV
 
-      # Commit and push the updated pubspec.yaml
+      # Commit and push the updated pubspec.yaml (only if not skipped)
       - name: Commit version update
+        if: env.SKIPPED != 'true'
         run: |
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
